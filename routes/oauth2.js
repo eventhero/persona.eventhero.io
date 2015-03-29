@@ -2,9 +2,10 @@
  * Module dependencies.
  */
 var oauth2orize = require('oauth2orize')
+  , express = require('express')
   , passport = require('passport')
   , login = require('connect-ensure-login')
-  , db = require('./db')
+  , db = require('./../db/index')
   , utils = require('./utils');
 
 // create OAuth 2.0 server
@@ -50,7 +51,7 @@ server.deserializeClient(function(id, done) {
 
 server.grant(oauth2orize.grant.code(function(client, redirectURI, user, ares, done) {
   var code = utils.uid(16)
-  
+
   db.authorizationCodes.save(code, client.id, redirectURI, user.id, function(err) {
     if (err) { return done(err); }
     done(null, code);
@@ -64,12 +65,12 @@ server.grant(oauth2orize.grant.code(function(client, redirectURI, user, ares, do
 // values.
 
 server.grant(oauth2orize.grant.token(function(client, user, ares, done) {
-    var token = utils.uid(256);
+  var token = utils.uid(256);
 
-    db.accessTokens.save(token, user.id, client.clientId, function(err) {
-        if (err) { return done(err); }
-        done(null, token);
-    });
+  db.accessTokens.save(token, user.id, client.clientId, function(err) {
+    if (err) { return done(err); }
+    done(null, token);
+  });
 }));
 
 // Exchange authorization codes for access tokens.  The callback accepts the
@@ -83,7 +84,7 @@ server.exchange(oauth2orize.exchange.code(function(client, code, redirectURI, do
     if (err) { return done(err); }
     if (client.id !== authCode.clientID) { return done(null, false); }
     if (redirectURI !== authCode.redirectURI) { return done(null, false); }
-    
+
     var token = utils.uid(256)
     db.accessTokens.save(token, authCode.userID, authCode.clientID, function(err) {
       if (err) { return done(err); }
@@ -99,32 +100,32 @@ server.exchange(oauth2orize.exchange.code(function(client, code, redirectURI, do
 
 server.exchange(oauth2orize.exchange.password(function(client, username, password, scope, done) {
 
-    //Validate the client
-    db.clients.findByClientId(client.clientId, function(err, localClient) {
+  //Validate the client
+  db.clients.findByClientId(client.clientId, function(err, localClient) {
+    if (err) { return done(err); }
+    if (localClient === null) {
+      return done(null, false);
+    }
+    if (localClient.clientSecret !== client.clientSecret) {
+      return done(null, false);
+    }
+    //Validate the user
+    db.users.findByUsername(username, function(err, user) {
+      if (err) { return done(err); }
+      if (user === null) {
+        return done(null, false);
+      }
+      if (password !== user.password) {
+        return done(null, false);
+      }
+      //Everything validated, return the token
+      var token = utils.uid(256);
+      db.accessTokens.save(token, user.id, client.clientId, function(err) {
         if (err) { return done(err); }
-        if(localClient === null) {
-            return done(null, false);
-        }
-        if(localClient.clientSecret !== client.clientSecret) {
-            return done(null, false);
-        }
-        //Validate the user
-        db.users.findByUsername(username, function(err, user) {
-            if (err) { return done(err); }
-            if(user === null) {
-                return done(null, false);
-            }
-            if(password !== user.password) {
-                return done(null, false);
-            }
-            //Everything validated, return the token
-            var token = utils.uid(256);
-            db.accessTokens.save(token, user.id, client.clientId, function(err) {
-                if (err) { return done(err); }
-                done(null, token);
-            });
-        });
+        done(null, token);
+      });
     });
+  });
 }));
 
 // Exchange the client id and password/secret for an access token.  The callback accepts the
@@ -134,24 +135,25 @@ server.exchange(oauth2orize.exchange.password(function(client, username, passwor
 
 server.exchange(oauth2orize.exchange.clientCredentials(function(client, scope, done) {
 
-    //Validate the client
-    db.clients.findByClientId(client.clientId, function(err, localClient) {
-        if (err) { return done(err); }
-        if(localClient === null) {
-            return done(null, false);
-        }
-        if(localClient.clientSecret !== client.clientSecret) {
-            return done(null, false);
-        }
-        var token = utils.uid(256);
-        //Pass in a null for user id since there is no user with this grant type
-        db.accessTokens.save(token, null, client.clientId, function(err) {
-            if (err) { return done(err); }
-            done(null, token);
-        });
+  //Validate the client
+  db.clients.findByClientId(client.clientId, function(err, localClient) {
+    if (err) { return done(err); }
+    if (localClient === null) {
+      return done(null, false);
+    }
+    if (localClient.clientSecret !== client.clientSecret) {
+      return done(null, false);
+    }
+    var token = utils.uid(256);
+    //Pass in a null for user id since there is no user with this grant type
+    db.accessTokens.save(token, null, client.clientId, function(err) {
+      if (err) { return done(err); }
+      done(null, token);
     });
+  });
 }));
 
+var oauth2 = {};
 // user authorization endpoint
 //
 // `authorization` middleware accepts a `validate` callback which is
@@ -168,7 +170,7 @@ server.exchange(oauth2orize.exchange.clientCredentials(function(client, scope, d
 // authorization).  We accomplish that here by routing through `ensureLoggedIn()`
 // first, and rendering the `dialog` view. 
 
-exports.authorization = [
+oauth2.authorization = [
   login.ensureLoggedIn(),
   server.authorization(function(clientID, redirectURI, done) {
     db.clients.findByClientId(clientID, function(err, client) {
@@ -180,7 +182,7 @@ exports.authorization = [
       return done(null, client, redirectURI);
     });
   }),
-  function(req, res){
+  function(req, res) {
     res.render('dialog', { transactionID: req.oauth2.transactionID, user: req.user, client: req.oauth2.client });
   }
 ]
@@ -192,11 +194,10 @@ exports.authorization = [
 // client, the above grant middleware configured above will be invoked to send
 // a response.
 
-exports.decision = [
+oauth2.decision = [
   login.ensureLoggedIn(),
   server.decision()
 ]
-
 
 // token endpoint
 //
@@ -205,8 +206,17 @@ exports.decision = [
 // exchange middleware will be invoked to handle the request.  Clients must
 // authenticate when making requests to this endpoint.
 
-exports.token = [
+oauth2.token = [
   passport.authenticate(['basic', 'oauth2-client-password'], { session: false }),
   server.token(),
   server.errorHandler()
 ]
+
+module.exports = function() {
+  // return express router that can be mounted on a path, e.g. /oauth
+  var router = express.Router();
+  router.get('/authorize', oauth2.authorization);
+  router.post('/authorize/decision', oauth2.decision);
+  router.post('/token', oauth2.token);
+  return router;
+};

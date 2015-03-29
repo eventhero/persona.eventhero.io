@@ -2,17 +2,12 @@
  * Module dependencies.
  */
 var express = require('express')
-    , morgan = require('morgan')
-    , bodyParser = require('body-parser')
-    , cookieParser = require('cookie-parser')
-    , session = require('express-session')
-    , errorhandler = require('errorhandler')
-    , passport = require('passport')
-    , site = require('./site')
-    , oauth2 = require('./oauth2')
-    , user = require('./user')
-    , client = require('./client')
-    , util = require('util')
+  , morgan = require('morgan')
+  , bodyParser = require('body-parser')
+  , cookieParser = require('cookie-parser')
+  , session = require('express-session')
+  , errorhandler = require('errorhandler')
+  , passport = require('passport')
 
 // Express configuration
 
@@ -22,13 +17,16 @@ app.use(morgan('combined'));
 app.use(cookieParser('secret')) // TODO: specify options https://www.npmjs.com/package/cookie
 app.use(bodyParser.urlencoded({ extended: false }))
 app.use(bodyParser.json())
-app.use(session({ secret: 'keyboard cat' })) // TODO: specify session cookie options https://github.com/expressjs/session
+app.use(session({
+  resave: true,
+  saveUninitialized: true,
+  secret: 'keyboard cat'
+})) // TODO: specify session cookie options https://github.com/expressjs/session
 
 /*
  app.use(function(req, res, next) {
  console.log('-- session --');
  console.dir(req.session);
- //console.log(util.inspect(req.session, true, 3));
  console.log('-------------');
  next()
  });
@@ -41,17 +39,16 @@ app.use(errorhandler());
 
 require('./auth');
 
-app.get('/', site.index);
-app.get('/login', site.loginForm);
-app.post('/login', site.login);
-app.get('/logout', site.logout);
-app.get('/account', site.account);
+// Routing
+var oauth2 = require('./routes/oauth2');
+var sessions = require('./routes/sessions');
+var api = require('./routes/api');
 
-app.get('/dialog/authorize', oauth2.authorization);
-app.post('/dialog/authorize/decision', oauth2.decision);
-app.post('/oauth/token', oauth2.token);
-
-app.get('/api/userinfo', user.info);
-app.get('/api/clientinfo', client.info);
+app.get('/', function(req, res) {
+  res.send('OAuth 2.0 Server');
+});
+app.use('/sessions', sessions());
+app.use('/oauth', oauth2());
+app.use('/api', api());
 
 app.listen(3000);
