@@ -21,5 +21,21 @@
     "authorization"
   ],
   "author": "Kliment Mamykin",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.12.3",
+    "morgan": "^1.5.2",
+    "errorhandler": "^1.3.5",
+    "express-session": "^1.10.4",
+    "body-parser": "^1.12.2",
+    "connect-ensure-login": "^0.1.1",
+    "cookie-parser": "^1.3.4",
+    "ejs": "^2.3.1",
+    "oauth2orize": "^1.0.1",
+    "passport": "^0.2.1",
+    "passport-http": "^0.2.2",
+    "passport-http-bearer": "^1.0.1",
+    "passport-local": "^1.0.0",
+    "passport-oauth2-client-password": "^0.1.2"
+  }
 }
